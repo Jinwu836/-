@@ -1,1 +1,101 @@
+import numpy as np
 
+
+class Shock_wave:
+    def __init__(self, Ma1, gamma, u1, v1, rho1, p1, beta):
+        super(Shock_wave, self).__init__()
+        # 波前
+        self.gamma = gamma
+        self.Ma1 = Ma1  # 波前马赫数
+        self.u1 = u1
+        self.v1 = v1
+        self.rho1 = rho1
+        self.p1 = p1
+        self.beta = np.radians(beta)  # 激波角(度转弧度)
+
+        # 新增: 计算气流折转角θ
+        self.theta = self.shock_theta()
+
+    def shock_rho(self):
+        term1 = (2 / (self.gamma + 1)) * (1 / (self.Ma1 ** 2 * np.sin(self.beta) ** 2))
+        term2 = (self.gamma - 1) / (self.gamma + 1)
+        ratio = term1 + term2
+        return self.rho1 / ratio
+
+    def shock_p(self):
+        term1 = (2 * self.gamma / (self.gamma + 1)) * self.Ma1 ** 2 * np.sin(self.beta) ** 2
+        term2 = (self.gamma - 1) / (self.gamma + 1)
+        return self.p1 * (term1 - term2)
+
+    def shock_theta(self):
+        num = 2 * (self.Ma1**2 * np.sin(self.beta)**2 - 1) / np.tan(self.beta)
+        den = self.Ma1**2 * (self.gamma + np.cos(2 * self.beta)) + 2
+        return np.arctan2(num, den)
+
+    def shock_Ma2(self):
+        # 方向马赫数
+        Ma1n = self.Ma1 * np.sin(self.beta)  # 计算法相马赫
+
+        num = (self.gamma - 1) * Ma1n**2 + 2
+        den = 2 * self.gamma * Ma1n**2 - (self.gamma - 1)
+
+        if den < 0:
+            return np.nan
+
+        Ma2n = np.sqrt(num / den)
+        Ma2 = Ma2n / np.sin(self.beta - self.theta)
+        return Ma2
+
+    def shock_Cp2(self):
+        return (4 / (self.gamma + 1)) * (np.sin(self.beta)**2 - 1 / self.Ma1**2)
+
+    def shock_velocity(self, rho2):
+        V1n = self.u1 * np.sin(self.beta) - v1 * np.cos(self.beta)
+        V1t = self.u1 * np.cos(self.beta) + v1 * np.sin(self.beta)
+
+        V2n = (self.rho1 / rho2) * V1n
+        V2t = V1t
+
+        u2 = V2n * np.sin(self.beta) + V2t * np.cos(self.beta)
+        v2 = -V2n * np.cos(self.beta) + V2t * np.sin(self.beta)
+
+        return u2, v2
+
+    def forward(self):
+        # 计算波后参数
+        rho2 = self.shock_rho()
+        p2 = self.shock_p()
+        u2, v2 = self.shock_velocity(rho2)
+        Ma2 = self.shock_Ma2()
+
+        return u2, v2, rho2, p2, Ma2
+
+
+if __name__ == "__main__":
+    # 设置参数
+    gamma = 1.4  # 比热比，理想气体 γ = 1.4
+
+    Ma1 = 2.0  # 波前马赫数
+    theta = 10  # 气流折转角
+    beta = 39.3  # 激波角
+    u1 = np.cos(np.radians(theta))  # u x方向速度分量
+    v1 = -np.sin(np.radians(theta))  # v y方向速度分量
+    rho1 = 1.0  # 波前密度
+    p1 = 0.17857  # 波前压力
+
+    shock = Shock_wave(Ma1, gamma, u1, v1, rho1, p1, beta)
+
+    # 波后参数
+    u2, v2, rho2, p2, Ma2 = shock.forward()
+    # 压力系数
+    Cp2 = shock.shock_Cp2()
+    # 折转角
+    theta_deg_ = np.degrees(shock.theta)
+
+    # 输出结果
+    print(f"斜激波前后参数 (气流折转角θ={theta}°, 激波角β={beta}°)")
+    print("参数\t Ma\t u(m/s)\t v(m/s)\t rho(kg/m³)\t p(Pa)")
+    print(f"波前:\t {Ma1:.5f}\t {u1:.5f}\t {v1:.5f}\t {rho1:.5f}\t {p1:.5f}")
+    print(f"波后:\t {Ma2:.5f}\t {u2:.5f}\t {v2:.5f}\t {rho2:.5f}\t {p2:.5f}")
+    print(f"计算所得气流折转角θ = {theta_deg_:.5f}° (输入值:{theta}°)")
+    print(f"压力系数 Cp2 = {Cp2:.5f}")
